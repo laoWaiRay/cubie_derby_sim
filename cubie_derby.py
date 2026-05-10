@@ -7,7 +7,8 @@ from enum import IntEnum
 """
 CONSTANTS
 """
-DEBUG = 1
+INFO = 0
+DEBUG = 0
 
 COURSE_LENGTH = 30
 DIE_MIN = 1
@@ -175,13 +176,13 @@ class Abbowser(Cube):
         abbowser = next(cube for cube in game.course[self.position].cubes if cube.name == "Abbowser")
         game.course[self.position].cubes.remove(abbowser)
         game.course[self.position].cubes.insert(0, abbowser)
-        print(f"Abbowser moved to position {next_position}")
-        print(f"Stack after Abbowser moved: {game.course[self.position]}")
+        info_log(f"Abbowser moved to position {next_position}")
+        info_log(f"Stack after Abbowser moved: {game.course[self.position]}")
 
         # If only Abbowser on ending square, teleport back to stage end
         if len(game.course[next_position].cubes) == 1 and game.abbowser_return:
             assert self in game.course[self.position].cubes, "Something went horribly wrong"
-            print(f"Abbowser returned to position {COURSE_LENGTH - 1}")
+            info_log(f"Abbowser returned to position {COURSE_LENGTH - 1}")
             if self in game.course[self.position].cubes:
                 game.course[self.position].cubes.remove(self)
             game.course[COURSE_LENGTH - 1].cubes.append(self)
@@ -244,7 +245,7 @@ class Game:
 
         for i in turn_order:
             cube = self.cubes[i]
-            print(f"Start of {cube.name}'s turn")
+            info_log(f"Start of {cube.name}'s turn")
 
             if isinstance(cube, Abbowser):
                 if self.current_turn >= 2:
@@ -273,12 +274,12 @@ class Game:
 
         winners = self._get_winners()
         print_header("Cubie Derby Results")
-        print("------ Winners ------")
+        info_log("------ Winners ------")
         for winner in winners:
-            print(winner.name)
-        print("------ Cube Locations ------")
+            info_log(winner.name)
+        info_log("------ Cube Locations ------")
         for cube in sorted(self.cubes, key=lambda c: c.position, reverse=True):
-            print(f"{cube.name} - {cube.position}")
+            info_log(f"{cube.name} - {cube.position}")
 
         self.winner = winners[0]
 
@@ -286,7 +287,9 @@ class Game:
     def run_trials(self, n: int) -> None:
         results = defaultdict(int)
 
-        for _ in range(n):
+        for i in range(n):
+            if ((i + 1) % 100 == 0 and i > 0) or i == n - 1:
+                print(f"Running game {i + 1} / {n}")
             game_instance = Game()
             game_instance.start_game()
             results[game_instance.winner.name] += 1
@@ -323,7 +326,7 @@ class Game:
         to_move = from_stack.cubes[cube_idx:]
 
         for cube in to_move:
-            print(f"{cube.name} moved to position {to_stack.position}")
+            info_log(f"{cube.name} moved to position {to_stack.position}")
             cube.position = to_stack.position
             to_stack.cubes.append(cube)
             from_stack.cubes.remove(cube)
@@ -331,14 +334,14 @@ class Game:
         if to_stack.position in TELEPORTERS:
             random.shuffle(to_stack.cubes)
 
-        print(to_stack)
+        info_log(str(to_stack))
 
 
     def _move_cube(self, from_stack: Stack, to_stack: Stack, cube: Cube) -> None:
         cube.position = to_stack.position
         to_stack.cubes.append(cube)
         from_stack.cubes.remove(cube)
-        print(f"{cube.name} moved to position {to_stack.position}: {to_stack}")
+        info_log(f"{cube.name} moved to position {to_stack.position}: {to_stack}")
 
 
 """
@@ -387,14 +390,19 @@ def get_next_position_luuk(game: 'Game', start: int, roll: int, direction: Direc
         return next_position
 
 
+def info_log(message: str) -> None:
+    if INFO:
+        print(message)
+
 def debug_log(message: str) -> None:
     if DEBUG:
         print(f"\033[31m[DEBUG]\033[0m {message}")
 
 
 def print_header(message: str) -> None:
-    print(f"============ {message} ============")
+    if INFO:
+        print(f"============ {message} ============")
 
 game_instance = Game()
 # game_instance.start_game()
-game_instance.run_trials(100000)
+game_instance.run_trials(1000000)
