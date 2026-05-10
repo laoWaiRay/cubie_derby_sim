@@ -7,6 +7,8 @@ from enum import IntEnum
 """
 CONSTANTS
 """
+DEBUG = 1
+
 COURSE_LENGTH = 30
 DIE_MIN = 1
 DIE_MAX = 6
@@ -78,7 +80,6 @@ class Sigrika(Cube):
         from_stack = game.course[self.position]
         to_stack = game.course[next_position]
         game._move(from_stack, to_stack, self)
-        game.sigrika_debuff = 2
 
 
 class Denia(Cube):
@@ -155,22 +156,32 @@ class Abbowser(Cube):
             direction,
         )
 
+        collect_cubes = []
         for i in range(self.position, next_position + direction, direction):
             if not game.hiyuki_buff and any(isinstance(cube, Hiyuki) for cube in game.course[i].cubes):
                 game.hiyuki_buff = True
 
-        from_stack = game.course[self.position]
-        to_stack = game.course[next_position]
-        game._move(from_stack, to_stack, self)
+            if i != self.position and not game.abbowser_return and len(game.course[i].cubes):
+                game.abbowser_return = True
+
+            collect_cubes.extend(game.course[i].cubes)
+            game.course[i].cubes.clear()
+
+        game.course[next_position].cubes = collect_cubes
+        for cube in game.course[next_position].cubes:
+            cube.position = next_position
 
         # Abbowser always on bottom
         abbowser = next(cube for cube in game.course[self.position].cubes if cube.name == "Abbowser")
         game.course[self.position].cubes.remove(abbowser)
         game.course[self.position].cubes.insert(0, abbowser)
+        print(f"Abbowser moved to position {next_position}")
+        print(f"Stack after Abbowser moved: {game.course[self.position]}")
 
         # If only Abbowser on ending square, teleport back to stage end
-        if len(game.course[next_position].cubes) == 1:
+        if len(game.course[next_position].cubes) == 1 and game.abbowser_return:
             assert self in game.course[self.position].cubes, "Something went horribly wrong"
+            print(f"Abbowser returned to position {COURSE_LENGTH - 1}")
             if self in game.course[self.position].cubes:
                 game.course[self.position].cubes.remove(self)
             game.course[COURSE_LENGTH - 1].cubes.append(self)
@@ -223,10 +234,11 @@ class Game:
         self.sigrika_debuff = 0
         self.hiyuki_buff = False
         self.carte_buff = False
+        self.abbowser_return = False
 
 
     def play_turn(self):
-        print(f"====== Start of turn {self.current_turn} ====== ")
+        print_header(f"Start of turn {self.current_turn}")
         turn_order = list(range(len(self.cubes)))
         random.shuffle(turn_order)
 
@@ -240,27 +252,31 @@ class Game:
                 continue
 
             if isinstance(cube, Sigrika):
+                cube.move(self, Direction.FORWARD)
+                debug_log("Sigrika Debuff Activated")
                 self.sigrika_debuff = 2
-
-            cube.move(self, Direction.FORWARD)
+            else:
+                cube.move(self, Direction.FORWARD)
 
         if isinstance(self.cubes[turn_order[-1]], Carte):
             self.carte_buff = True
+
+        debug_log("Sigrika Debuff Deactivated")
         self.sigrika_debuff = 0
         self.current_turn += 1
 
 
     def start_game(self):
-        print("=== Welcome to Cubie Derby ===")
+        print_header("Welcome to Cubie Derby")
         while not self._is_game_over():
             self.play_turn()
 
         winners = self._get_winners()
-        print("============ Cubie Derby Results ============")
+        print_header("Cubie Derby Results")
         print("------ Winners ------")
         for winner in winners:
             print(winner.name)
-        print("------ Results ------")
+        print("------ Cube Locations ------")
         for cube in sorted(self.cubes, key=lambda c: c.position, reverse=True):
             print(f"{cube.name} - {cube.position}")
 
@@ -334,6 +350,7 @@ def roll(min: int = DIE_MIN, max: int = DIE_MAX) -> int:
 
 def get_next_position(game: 'Game', start: int, roll: int, direction: Direction = Direction.FORWARD) -> int:
     if game.sigrika_debuff > 0:
+        debug_log("Sigrika Debuff Applied")
         game.sigrika_debuff -= 1
         roll = max(1, roll - 1)
 
@@ -369,6 +386,14 @@ def get_next_position_luuk(game: 'Game', start: int, roll: int, direction: Direc
     else:
         return next_position
 
+
+def debug_log(message: str) -> None:
+    if DEBUG:
+        print(f"\033[31m[DEBUG]\033[0m {message}")
+
+
+def print_header(message: str) -> None:
+    print(f"============ {message} ============")
 
 game_instance = Game()
 # game_instance.start_game()
